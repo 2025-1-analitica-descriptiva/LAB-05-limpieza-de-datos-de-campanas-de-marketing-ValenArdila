@@ -3,6 +3,11 @@ Escriba el codigo que ejecute la accion solicitada.
 """
 
 # pylint: disable=import-outside-toplevel
+import os 
+import glob
+import csv 
+import zipfile
+import pandas as pd
 
 
 def clean_campaign_data():
@@ -45,13 +50,48 @@ def clean_campaign_data():
     - client_id
     - const_price_idx
     - eurobor_three_months
-
-
-
     """
-
-    return
-
+    #Lectura de archivos sin descomprimirlos
+    dataframes = []
+    
+    for index in range(10):
+        df = pd.read_csv(f"./files/input/bank-marketing-campaing-{str(index)}.csv.zip")
+        dataframes.append(df)
+    
+    #Concatenacion de todos los archivos en un solo dataframe
+    combined_df = pd.concat(dataframes, ignore_index=True)
+    
+    #Limpieza client
+    df_client = combined_df[["client_id", "age", "job", "marital", "education", "credit_default", "mortgage"]]
+    df_client["job"] = df_client["job"].str.replace(".", "").str.replace("-", "_")
+    df_client["education"] = df_client["education"].str.replace(".", "_").replace("unknown", pd.NA)
+    df_client["credit_default"] = df_client["credit_default"].apply(lambda x: 1 if x == "yes" else 0)
+    df_client["mortgage"] = df_client["mortgage"].apply(lambda x: 1 if x == "yes" else 0)
+    
+    
+    #Limpieza de campaign
+    df_campaign = combined_df[["client_id", "number_contacts", "contact_duration", "previous_campaign_contacts", "previous_outcome", 
+                               "campaign_outcome"]]
+    df_campaign["previous_outcome"] = df_campaign["previous_outcome"].apply(lambda x: 1 if x == "success" else 0)
+    df_campaign["campaign_outcome"] = df_campaign["campaign_outcome"].apply(lambda x: 1 if x == "yes" else 0)
+    df_campaign["last_contact_date"] = pd.to_datetime("2022-" + combined_df["month"].astype(str)+ "-" +combined_df["day"].astype(str))
+    
+    #Limpieza economics
+    df_economics = combined_df[["client_id", "cons_price_idx", "euribor_three_months"]]
+    
+    #Guardado de dataframes
+    output_directory = "./files/output"
+    if os.path.exists(output_directory):
+        files = glob.glob(f"{output_directory}/*")
+        for file in files:
+            os.remove(file)
+        os.rmdir(output_directory)
+    
+    os.mkdir(output_directory)
+    df_client.to_csv(os.path.join(output_directory, "client.csv"), index=False)
+    df_campaign.to_csv(os.path.join(output_directory, "campaign.csv"), index=False)
+    df_economics.to_csv(os.path.join(output_directory, "economics.csv"), index=False)
+    
 
 if __name__ == "__main__":
     clean_campaign_data()
